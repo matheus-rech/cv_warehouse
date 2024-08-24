@@ -10,7 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize the Anthropic client
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -98,7 +98,9 @@ Here is the certificate image to analyze:"""
                 }
             ]
         )
-        return json.loads(message.content[0].text)
+        result = json.loads(message.content[0].text)
+        logging.info(f"Certificate analysis result: {result}")
+        return result
     except Exception as e:
         logging.error(f"Error analyzing certificate: {e}")
         raise
@@ -113,13 +115,15 @@ def append_to_sheet(sheet_service, spreadsheet_id, data):
             data.get('section', 'Not specified'),
             data.get('transcription', 'Not specified')
         ]]
+        logging.info(f"Appending data to sheet: {values}")
         body = {'values': values}
-        sheet_service.spreadsheets().values().append(
+        result = sheet_service.spreadsheets().values().append(
             spreadsheetId=spreadsheet_id,
             range='Sheet1',  # Adjust this if your sheet has a different name
             valueInputOption='USER_ENTERED',
             body=body
         ).execute()
+        logging.info(f"Append result: {result}")
         logging.info("Data appended to Google Sheet successfully.")
     except Exception as e:
         logging.error(f"Error appending data to sheet: {e}")
@@ -127,6 +131,7 @@ def append_to_sheet(sheet_service, spreadsheet_id, data):
 
 def process_certificate(drive_service, sheet_service, spreadsheet_id, file):
     try:
+        logging.info(f"Processing certificate: {file['name']}")
         request = drive_service.files().get_media(fileId=file['id'])
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
@@ -137,8 +142,11 @@ def process_certificate(drive_service, sheet_service, spreadsheet_id, file):
         result = analyze_certificate(fh.getvalue())
         append_to_sheet(sheet_service, spreadsheet_id, result)
 
+        logging.info(f"Successfully processed and appended data for certificate: {file['name']}")
+        
+        # Only delete the file if processing and appending were successful
         drive_service.files().delete(fileId=file['id']).execute()
-        logging.info(f"Processed and deleted certificate: {file['name']}")
+        logging.info(f"Deleted certificate: {file['name']}")
 
         return True
     except Exception as e:
@@ -153,6 +161,7 @@ def main():
             fields="files(id, name, mimeType)"
         ).execute()
         items = results.get('files', [])
+        logging.info(f"Found {len(items)} files to process")
 
         processed_count = 0
         for item in items:
