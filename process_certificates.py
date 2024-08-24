@@ -145,27 +145,6 @@ def process_certificate(drive_service, sheet_service, spreadsheet_id, file):
         logging.error(f"Error processing certificate {file['name']}: {e}")
         return False
 
-@functions_framework.http
-def process_certificates(request):
-    try:
-        drive_service, sheet_service = get_google_services()
-        results = drive_service.files().list(
-            q=f"'{FOLDER_ID}' in parents and (mimeType='image/jpeg' or mimeType='image/png')",
-            fields="files(id, name, mimeType)"
-        ).execute()
-        items = results.get('files', [])
-
-        processed_count = 0
-        for item in items:
-            if process_certificate(drive_service, sheet_service, SPREADSHEET_ID, item):
-                processed_count += 1
-
-        logging.info(f"Processed {processed_count} certificates.")
-        return f"Processed {processed_count} certificates", 200
-    except Exception as e:
-        logging.error(f"Error processing certificates: {e}")
-        return str(e), 500
-
 def main():
     try:
         drive_service, sheet_service = get_google_services()
